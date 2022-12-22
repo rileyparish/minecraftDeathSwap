@@ -1,0 +1,8 @@
+name: DeathSwapPlus
+version: '${project.version}'
+main: me.riley.parish.DeathSwapPlus
+api-version: 1.19
+
+commands:
+  deathswap:
+    description: Death swap commands.
