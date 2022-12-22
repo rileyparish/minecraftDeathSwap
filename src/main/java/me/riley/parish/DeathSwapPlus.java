@@ -1,5 +1,6 @@
 package me.riley.parish;
 
+import java.util.HashMap;
 import java.util.Iterator;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -10,15 +11,17 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
 public class DeathSwapPlus extends JavaPlugin implements CommandExecutor, Listener {
-    private Integer swapDuration = 300;
+    private Integer swapDuration = 300;     // default to 5 minutes
     private BukkitTask task;
     private boolean paused;
+    HashMap<Player, Integer> deathCounts = new HashMap<>();
 
     public DeathSwapPlus() {
     }
@@ -37,7 +40,18 @@ public class DeathSwapPlus extends JavaPlugin implements CommandExecutor, Listen
     }
 
     private void start() {
+        // start() starts deathSwap for all players
         this.start(swapDuration);
+
+        // reset all death counts to 0 to start the next game
+        Iterator var1 = Pair.getPairs().iterator();
+        while(var1.hasNext()) {
+            Pair pair = (Pair) var1.next();
+            Player player1 = Bukkit.getPlayer(pair.getPlayer1ID());
+            Player player2 = Bukkit.getPlayer(pair.getPlayer2ID());
+            deathCounts.put(player1, 0);
+            deathCounts.put(player2, 0);
+        }
     }
 
     private void start(final int time) {
@@ -56,8 +70,8 @@ public class DeathSwapPlus extends JavaPlugin implements CommandExecutor, Listen
 
                         while(var1.hasNext()) {
                             Pair pair = (Pair)var1.next();
-                            Player player1 = Bukkit.getPlayer(pair.getPlayer1());
-                            Player player2 = Bukkit.getPlayer(pair.getPlayer2());
+                            Player player1 = Bukkit.getPlayer(pair.getPlayer1ID());
+                            Player player2 = Bukkit.getPlayer(pair.getPlayer2ID());
                             Location location = player1.getLocation();
                             player1.teleport(player2);
                             player2.teleport(location);
@@ -74,11 +88,16 @@ public class DeathSwapPlus extends JavaPlugin implements CommandExecutor, Listen
     }
 
     private void stop() {
+        // display deathCounter for all players
+        for(Player p : deathCounts.keySet()){
+            Bukkit.broadcastMessage(p.getDisplayName() + " died a total of " + deathCounts.get(p) + " times.");
+        }
+        deathCounts.clear();
+
         if (this.task != null) {
             this.task.cancel();
             this.task = null;
         }
-
     }
 
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
@@ -110,7 +129,7 @@ public class DeathSwapPlus extends JavaPlugin implements CommandExecutor, Listen
                             return false;
                         }
 
-                        Pair pair = Pair.getTwin(player1);
+                        Pair pair = Pair.getPair(player1);
                         if (pair == null) {
                             sender.sendMessage(ChatColor.RED + player1.getName() + " is not paired.");
                             return false;
@@ -121,7 +140,7 @@ public class DeathSwapPlus extends JavaPlugin implements CommandExecutor, Listen
                         return true;
                     }else if(args[0].equalsIgnoreCase("setSwapDuration")){
                         swapDuration = Integer.parseInt(args[1]);
-                        sender.sendMessage(ChatColor.GREEN + "Set swap duration to " + swapDuration.toString() + " seconds.");
+                        Bukkit.broadcastMessage(ChatColor.GREEN + "Set swap duration to " + swapDuration.toString() + " seconds.");
                         return true;
                     }
                 } else if (args.length == 3 && args[0].equalsIgnoreCase("add")) {
@@ -142,18 +161,18 @@ public class DeathSwapPlus extends JavaPlugin implements CommandExecutor, Listen
                         return false;
                     }
 
-                    if (Pair.getTwin(player1) != null) {
+                    if (Pair.getPair(player1) != null) {
                         sender.sendMessage(ChatColor.RED + player1.getName() + " is already paired.");
                         return false;
                     }
 
-                    if (Pair.getTwin(player2) != null) {
+                    if (Pair.getPair(player2) != null) {
                         sender.sendMessage(ChatColor.RED + player2.getName() + " is already paired.");
                         return false;
                     }
 
                     new Pair(player1.getUniqueId(), player2.getUniqueId());
-                    sender.sendMessage(ChatColor.GREEN + player1.getName() + " and " + player2.getName() + " are now paired!");
+                    Bukkit.broadcastMessage(ChatColor.GREEN + player1.getName() + " and " + player2.getName() + " are now paired!");
                     return true;
                 }
 
@@ -172,16 +191,16 @@ public class DeathSwapPlus extends JavaPlugin implements CommandExecutor, Listen
     @EventHandler
     public void onPlayerQuitEvent(PlayerQuitEvent event) {
         Player player = event.getPlayer();
-        Pair pair = Pair.getTwin(player);
+        Pair pair = Pair.getPair(player);
         if (pair != null) {
             pair.remove();
-            Player player1 = Bukkit.getPlayer(pair.getPlayer2());
+            Player player1 = Bukkit.getPlayer(pair.getPlayer2ID());
             if (player1 == null) {
                 return;
             }
 
             if (player1.equals(player)) {
-                player1 = Bukkit.getPlayer(pair.getPlayer1());
+                player1 = Bukkit.getPlayer(pair.getPlayer1ID());
             }
 
             if (player1 == null) {
@@ -189,6 +208,32 @@ public class DeathSwapPlus extends JavaPlugin implements CommandExecutor, Listen
             }
 
             player1.sendMessage(ChatColor.YELLOW + player.getName() + " left. You are no longer paired.");
+        }
+
+    }
+
+    @EventHandler
+    public void OnPlayerDeathEvent(PlayerDeathEvent event){
+        if(task != null){
+            Player deadPlayer = event.getEntity().getPlayer();
+            Pair pair = Pair.getPair(deadPlayer);
+            // if this player is not currently paired with anyone, don't do the rest of the actions.
+            if(pair == null){
+                return;
+            }
+            // a player has died! Increment the deathcounter for that player
+            deathCounts.put(deadPlayer, deathCounts.get(deadPlayer) + 1);
+
+            // kinda hacky, but I want to display the death message BEFORE the totals
+            Bukkit.broadcastMessage(event.getDeathMessage());
+            event.setDeathMessage("");
+            Bukkit.broadcastMessage(ChatColor.RED + deadPlayer.getDisplayName() + ChatColor.WHITE + " has died " +
+                    ChatColor.RED + deathCounts.get(deadPlayer) + ChatColor.WHITE + " times this game.");
+
+            // first get the pair that this player belongs to
+            Player opponent = pair.getOpponent(deadPlayer.getUniqueId());
+            Bukkit.broadcastMessage(ChatColor.GREEN + opponent.getPlayer().getDisplayName() + ChatColor.WHITE +
+                    " has died " + ChatColor.GREEN + deathCounts.get(opponent) + ChatColor.WHITE + " times this game.");
         }
 
     }
