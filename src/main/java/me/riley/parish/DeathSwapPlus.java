@@ -16,7 +16,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
 public class DeathSwapPlus extends JavaPlugin implements CommandExecutor, Listener {
-    private static final int DELAY = 300;
+    private Integer swapDuration = 300;
     private BukkitTask task;
     private boolean paused;
 
@@ -37,7 +37,7 @@ public class DeathSwapPlus extends JavaPlugin implements CommandExecutor, Listen
     }
 
     private void start() {
-        this.start(30);
+        this.start(swapDuration);
     }
 
     private void start(final int time) {
@@ -63,7 +63,7 @@ public class DeathSwapPlus extends JavaPlugin implements CommandExecutor, Listen
                             player2.teleport(location);
                         }
 
-                        this.timer = 300;
+                        this.timer = swapDuration;
                     } else {
                         --this.timer;
                     }
@@ -83,7 +83,7 @@ public class DeathSwapPlus extends JavaPlugin implements CommandExecutor, Listen
 
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (command.getName().equalsIgnoreCase("deathswap")) {
-            if (args.length == 1) {
+            if (args.length == 1) {     // start/stop deathswap
                 if (args[0].equalsIgnoreCase("start")) {
                     if (this.task != null) {
                         sender.sendMessage(ChatColor.GREEN + "Death swap is already started.");
@@ -118,6 +118,10 @@ public class DeathSwapPlus extends JavaPlugin implements CommandExecutor, Listen
 
                         pair.remove();
                         sender.sendMessage(ChatColor.GREEN + player1.getName() + " removed from pair.");
+                        return true;
+                    }else if(args[0].equalsIgnoreCase("setSwapDuration")){
+                        swapDuration = Integer.parseInt(args[1]);
+                        sender.sendMessage(ChatColor.GREEN + "Set swap duration to " + swapDuration.toString() + " seconds.");
                         return true;
                     }
                 } else if (args.length == 3 && args[0].equalsIgnoreCase("add")) {
