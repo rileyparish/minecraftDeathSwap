@@ -1,7 +1,10 @@
 package me.riley.parish;
 
+import java.util.List;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Random;
+
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
@@ -13,15 +16,19 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
+import static java.lang.Float.parseFloat;
 
 public class DeathSwapPlus extends JavaPlugin implements CommandExecutor, Listener {
     private Integer swapDuration = 300;     // default to 5 minutes
     private BukkitTask task;
     private boolean paused;
     HashMap<Player, Integer> deathCounts = new HashMap<>();
+    private Float keepInventoryPercent = 0.0f;
 
     public DeathSwapPlus() {
     }
@@ -142,6 +149,10 @@ public class DeathSwapPlus extends JavaPlugin implements CommandExecutor, Listen
                         swapDuration = Integer.parseInt(args[1]);
                         Bukkit.broadcastMessage(ChatColor.GREEN + "Set swap duration to " + swapDuration.toString() + " seconds.");
                         return true;
+                    }else if(args[0].equalsIgnoreCase("keepInventoryPercent")){
+                        keepInventoryPercent = parseFloat(args[1]) / 100;
+                        Bukkit.broadcastMessage(ChatColor.GREEN + "Will keep " + Integer.parseInt(args[1]) + "% of inventory on death.");
+                        return true;
                     }
                 } else if (args.length == 3 && args[0].equalsIgnoreCase("add")) {
                     player1 = Bukkit.getPlayer(args[1]);
@@ -214,6 +225,7 @@ public class DeathSwapPlus extends JavaPlugin implements CommandExecutor, Listen
 
     @EventHandler
     public void OnPlayerDeathEvent(PlayerDeathEvent event){
+        // only run this if deathSwap is active
         if(task != null){
             Player deadPlayer = event.getEntity().getPlayer();
             Pair pair = Pair.getPair(deadPlayer);
@@ -234,7 +246,68 @@ public class DeathSwapPlus extends JavaPlugin implements CommandExecutor, Listen
             Player opponent = pair.getOpponent(deadPlayer.getUniqueId());
             Bukkit.broadcastMessage(ChatColor.GREEN + opponent.getPlayer().getDisplayName() + ChatColor.WHITE +
                     " has died " + ChatColor.GREEN + deathCounts.get(opponent) + ChatColor.WHITE + " times this game.");
-        }
 
+
+            // keep partial inventory feature:
+            if(keepInventoryPercent == 0){
+                return;
+            }
+            event.setKeepInventory(true);
+            List<ItemStack> droppedItems = event.getDrops();
+
+            // 0-8 is the hotbar
+            // 8-35 is inventory
+            // 36 boots
+            // 37 leggings
+            // 38 chestplate
+            // 39 helmet
+            // 40 offhand/shield
+
+            PlayerInventory playerInventory = event.getEntity().getPlayer().getInventory();
+            Random random = new Random();
+
+            for(int i = 0; i < 36; i++){
+                ItemStack curStack = playerInventory.getItem(i);
+                if(curStack != null){
+                    // I can keep the stack or not keep the stack easily
+                    // but how do I keep a partial stack?
+
+                    // if the random number is out of range, remove the items from the inventory
+                    if(random.nextFloat() > keepInventoryPercent){
+                        playerInventory.remove(curStack);
+                        System.out.println("Removing " + curStack.toString() + " from inventory.");
+                    }else{
+                        // if this stack was selected to remain in the inventory, don't drop it on the ground (to prevent duping)
+                        droppedItems.remove(curStack);
+                    }
+                }
+            }
+            // the armor slots need special logic
+            if(random.nextFloat() > keepInventoryPercent){
+                playerInventory.setHelmet(null);
+            }else{
+                droppedItems.remove(playerInventory.getItem(39));
+            }
+            if(random.nextFloat() > keepInventoryPercent){
+                playerInventory.setChestplate(null);
+            }else{
+                droppedItems.remove(playerInventory.getItem(38));
+            }
+            if(random.nextFloat() > keepInventoryPercent){
+                playerInventory.setLeggings(null);
+            }else{
+                droppedItems.remove(playerInventory.getItem(37));
+            }
+            if(random.nextFloat() > keepInventoryPercent){
+                playerInventory.setBoots(null);
+            }else{
+                droppedItems.remove(playerInventory.getItem(36));
+            }
+            if(random.nextFloat() > keepInventoryPercent){
+                playerInventory.setItemInOffHand(null);
+            }else{
+                droppedItems.remove(playerInventory.getItem(40));
+            }
+        }
     }
 }
