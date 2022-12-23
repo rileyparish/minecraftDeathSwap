@@ -28,13 +28,12 @@ public class DeathSwapPlus extends JavaPlugin implements CommandExecutor, Listen
     private BukkitTask task;
     private boolean paused;
     HashMap<Player, Integer> deathCounts = new HashMap<>();
-    private Float keepInventoryPercent = 0.0f;
+    private Float keepInventoryPercent = 0.0f;      // default to not keeping inventory
 
     public DeathSwapPlus() {
     }
 
     public void onEnable() {
-        System.out.println("Hello from deathSwap!");
         Iterator var1 = this.getDescription().getCommands().keySet().iterator();
 
 
@@ -145,7 +144,7 @@ public class DeathSwapPlus extends JavaPlugin implements CommandExecutor, Listen
                         pair.remove();
                         sender.sendMessage(ChatColor.GREEN + player1.getName() + " removed from pair.");
                         return true;
-                    }else if(args[0].equalsIgnoreCase("setSwapDuration")){
+                    }else if(args[0].equalsIgnoreCase("swapDuration")){
                         swapDuration = Integer.parseInt(args[1]);
                         Bukkit.broadcastMessage(ChatColor.GREEN + "Set swap duration to " + swapDuration.toString() + " seconds.");
                         return true;
@@ -244,6 +243,7 @@ public class DeathSwapPlus extends JavaPlugin implements CommandExecutor, Listen
 
             // first get the pair that this player belongs to
             Player opponent = pair.getOpponent(deadPlayer.getUniqueId());
+            // now get the opponent of the player that just died
             Bukkit.broadcastMessage(ChatColor.GREEN + opponent.getPlayer().getDisplayName() + ChatColor.WHITE +
                     " has died " + ChatColor.GREEN + deathCounts.get(opponent) + ChatColor.WHITE + " times this game.");
 
@@ -255,6 +255,7 @@ public class DeathSwapPlus extends JavaPlugin implements CommandExecutor, Listen
             event.setKeepInventory(true);
             List<ItemStack> droppedItems = event.getDrops();
 
+            // inventory slots:
             // 0-8 is the hotbar
             // 8-35 is inventory
             // 36 boots
@@ -283,9 +284,11 @@ public class DeathSwapPlus extends JavaPlugin implements CommandExecutor, Listen
                 }
             }
             // the armor slots need special logic
+            // If the item is kept in the inventory, remove it from dropped items
             if(random.nextFloat() > keepInventoryPercent){
                 playerInventory.setHelmet(null);
             }else{
+                // the helmet has been selected to stay in the player's inventory. Remove it from dropped items.
                 droppedItems.remove(playerInventory.getItem(39));
             }
             if(random.nextFloat() > keepInventoryPercent){
